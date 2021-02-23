@@ -99,7 +99,7 @@ babynames %>%
              color=sex))+
 geom_line()+
 labs(title="Number of Distinct Baby Names Since 1880",
-     y="Number of Names",
+     y="",
      x="")
   
 ggplotly(unique_baby_names)
@@ -248,23 +248,32 @@ panama_all<-
 bind_rows(panama_bike, panama_run, panama_swim)
 
 triathalon_map <- get_stamenmap(
-    bbox = c(left = -79.6, bottom = 8.8, right = -80.0, top = 9.0), 
+    bbox = c(left = -79.5943, bottom = 8.9067, right = -79.4347, top = 9.0125), 
     maptype="terrain",
-    zoom = 6)
+    zoom=12)
 
 ggmap(triathalon_map) +
   geom_path(data = panama_all, 
-             aes(x = lon, y = lat),
+             aes(x = lon, y = lat, color=event),
              size = 1) +
   geom_point(data = panama_all, 
              aes(x = lon, y = lat, color=event),
-             size = 2)+
+             size = 3)+
   theme_map() +
   labs(title="Ironman 70.3 Pan Am Triathalon",
     subtitle="Time:{frame_along}")+
   transition_reveal(time)+
   shadow_mark(past=TRUE)
 ```
+  
+```{r}
+anim_save("panama_triathalon.gif")
+```
+  
+```{r}
+knitr::include_graphics("panama_triathalon.gif")
+```
+
   
 ## COVID-19 data
 
@@ -280,7 +289,7 @@ ggmap(triathalon_map) +
 covid_graph<-
 covid19 %>% 
   group_by(state) %>% 
-  mutate(lag_7=lag(cases, n=1, order_by=date)) %>% 
+  mutate(lag_7=lag(cases, n=7, order_by=date)) %>% 
   replace_na(list(lag_7=0)) %>% 
   mutate(new_weekly_cases=cases-lag_7) %>% 
   filter(cases>20) %>% 
@@ -293,10 +302,20 @@ covid19 %>%
   labs(title="New Weekly COVID-19 Cases by US State",
        x="Total Cases",
        y="New Weekly Cases")+
-  transition_states(state)+
+  transition_reveal(date)+
   shadow_mark(past=TRUE)
   animate(covid_graph, nframes=200, duration=30)
 ```
+
+```{r}
+anim_save("weekly_covid.gif")
+```
+
+```{r, fig.height=15, fig.width=30}
+knitr::include_graphics("weekly_covid.gif")
+```
+
+Honestly, it is fairly difficult to discern a whole lot from this graph. Clearly, total cases constantly increase, and weekly cases do for the first part of the animation as well. As more states are added to the plot it becomes harder to make out details, but there are periods of time when new weekly cases drop even as total cases rise. This happens far more often and more starkly during the early days of the pandemic, and then more sporadically as case counts continue to climb and the situation worsens. While I completely understand the need to put this graph on a logarithmic scale, it can be easy to overlook or discount the massive increase in both total cases and new weekly cases. It would be very interesting to see this same animation as vaccine distribution ramps up! 
 
   
   7. In this exercise you will animate a map of the US, showing how cumulative COVID-19 cases per 10,000 residents has changed over time. This is similar to exercises 11 & 12 from the previous exercises, with the added animation! So, in the end, you should have something like the static map you made there, but animated over all the days. The code below gives the population estimates for each state and loads the `states_map` data. Here is a list of details you should include in the plot:
@@ -317,11 +336,48 @@ census_pop_est_2018 <- read_csv("https://www.dropbox.com/s/6txwv3b4ng7pepe/us_ce
 states_map <- map_data("state")
 ```
 
+
+```{r}
+covid19_and_pop<-
+  covid19 %>% 
+  mutate(region=tolower(state)) %>%
+  left_join(census_pop_est_2018,
+            by=c("region"="state")) %>% 
+  mutate(weekday=wday(date, label=TRUE)) %>%
+  rename(population=est_pop_2018) %>% 
+  filter(weekday=="Fri")
+
+covid_per_capita<-
+covid19_and_pop %>%
+  ggplot() +
+  geom_map(map = states_map,
+           aes(map_id = region,
+               fill = cases/population*10000,
+               group=date)) +
+  expand_limits(x = states_map$long, y = states_map$lat) +
+  theme_map()+
+  labs(title="COVID-19 Cases per 10,000 People",
+       subtitle="Date: {frame_time}")+
+  transition_time(date)
+  
+animate(covid_per_capita, nframes=200, end_pause=10)
+```
+
+```{r}
+anim_save("covid_per_capita.gif")
+```
+
+```{r}
+knitr::include_graphics("covid_per_capita.gif")
+```
+
+Based on this map, it looks like COVID arrives in every US state by mid- to late March. From there, cases remain comparatively under control--around 250-500/10,000 people--until late summer. Starting in August, we begin to see New York begin to change color, lightening as its cases per capita increase. Shortly thereafter, we can observe the same trend across other states. Starting in the early fall and really picking up around November, Midwest states begin to light up, their per capita case counts spiking with cold weather and the holiday season. By February 2021, every state is considerably lighter than they were the previous year, indicating far more COVID cases per capita, most strikingly in the Dakotas.
+
 ## Your first `shiny` app (for next week!)
 
 NOT DUE THIS WEEK! If any of you want to work ahead, this will be on next week's exercises.
 
-  8. This app will also use the COVID data. Make sure you load that data and all the libraries you need in the `app.R` file you create. Below, you will post a link to the app that you publish on shinyapps.io. You will create an app to compare states' cumulative number of COVID cases over time. The x-axis will be number of days since 20+ cases and the y-axis will be cumulative cases on the log scale (`scale_y_log10()`). We use number of days since 20+ cases on the x-axis so we can make better comparisons of the curve trajectories. You will have an input box where the user can choose which states to compare (`selectInput()`) and have a submit button to click once the user has chosen all states they're interested in comparing. The graph should display a different line for each state, with labels either on the graph or in a legend. Color can be used if needed. 
+  8. This app will also use the COVID data. Make sure you load that data and all the libraries you need in the `app.R` file you create. Below, you will post a link to the app that you publish on shinyapps.io. You will create an app to compare states' cumulative number of COVID cases over time. The x-axis will be number of days since 20+ cases and the y-axis will be cumulative cases on the log scale (`scale_y_log10()`). We use number of days since 20+ cases on the x-axis so we can make better comparisons of the curve trajectories. You will have an input box where the user can choose which states to compare (`selectInput()`) and have a submit button to click once the user has chosen all states they're interested in comparing. The graph should display a different line for each state, with labels either on the graph or in a legend. Color can be used if needed.
   
 ## GitHub link
 
